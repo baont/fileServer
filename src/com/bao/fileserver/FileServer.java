@@ -9,7 +9,7 @@ public class FileServer {
     private static final int PORT = 8089;
 
     public static void main(String[] args) throws IOException {
-        String folder = "C:\\javaRefactor\\src\\com\\bao\\fileserve";
+        String folder = "C:\\javaRefactor\\src\\com\\bao\\fileserver";
         if (!Files.isDirectory(Paths.get(folder))) {
             System.out.println("Invalid path or not a folder");
             System.exit(1);
