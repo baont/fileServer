@@ -2,8 +2,8 @@ package com.examplefoobar.utils;
 
 import java.io.File;
 import java.io.FileWriter;
-import java.util.HashSet;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * FIXME: This class was written by a really junior software engineer.
@@ -33,7 +33,7 @@ public class DisappointingGroup {
 
     private String groupId;
 
-    private HashSet<Member> members;
+    private ConcurrentHashMap.KeySetView<Member,Boolean> members;
 
     private boolean isRunning;
     private boolean shouldStop;
@@ -67,41 +67,42 @@ public class DisappointingGroup {
         public int hashCode() {
             return Objects.hash(memberId);
         }
+
+        String getDecoratedMemberId() {
+            return getMemberId() + "(normal)";
+        }
     }
 
     static class AdminMember extends Member {
         AdminMember(String memberId, int age) {
             super(memberId, age);
         }
+
+        @Override
+        protected String getDecoratedMemberId() {
+            return getMemberId() + "(admin)";
+        }
     }
 
     public DisappointingGroup(String groupId) {
         this.groupId = groupId;
-        this.members = new HashSet<>();
+        this.members = ConcurrentHashMap.newKeySet();
     }
 
     public void addMember(Member member) {
         members.add(member);
     }
 
-    private String getDecoratedMemberId(Member member) {
-        if (member instanceof Member) {
-            return member.getMemberId() + "(normal)";
-        } else if (member instanceof AdminMember) {
-            return member.getMemberId() + "(admin)";
-        }
-        return null;
-    }
-
     private String getMembersAsStringFlooringAge() {
-        String buf = "";
+        StringBuffer buf = new StringBuffer();
         for (Member member : members) {
             // Floor the age: e.g. 37 -> 30
-            Integer flooredAge = (member.getAge() / 10) * 10;
-            String decoratedMemberId = getDecoratedMemberId(member);
-            buf += String.format("memberId=%s, age=%d¥n", decoratedMemberId, flooredAge);
+            int flooredAge = (member.getAge() / 10) * 10;
+            String decoratedMemberId = member.getDecoratedMemberId();
+            buf.append(String.format("memberId=%s, age=%d" + System.lineSeparator(),
+                    decoratedMemberId, flooredAge));
         }
-        return buf;
+        return buf.toString();
     }
 
     /**
@@ -170,15 +171,33 @@ public class DisappointingGroup {
         shouldStop = true;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         DisappointingGroup group = new DisappointingGroup("group-001");
 
-        group.addMember(new DisappointingGroup.Member("member-100", 42));
-        group.addMember(new DisappointingGroup.Member("member-100", 43));
-        group.addMember(new DisappointingGroup.AdminMember("admin-999", 30));
-        group.addMember(new DisappointingGroup.Member("member-321", 15));
+//        group.addMember(new DisappointingGroup.Member("member-100", 42));
+//        group.addMember(new DisappointingGroup.Member("member-100", 43));
+//        group.addMember(new DisappointingGroup.AdminMember("admin-999", 30));
+//        group.addMember(new DisappointingGroup.Member("member-321", 15));
 
-        group.startLoggingMemberList10Times("C:/Users/nec12/OneDrive/Desktop/output.primary",
-                "C:/Users/nec12/OneDrive/Desktop/output.secondary");
+        final int THREAD_COUNT = 10;
+        final int NUMS_TO_ADD = 100000;
+        Thread[] threads = new Thread[THREAD_COUNT];
+        for (int i = 0; i < THREAD_COUNT; i++) {
+            final int threadNo = i;
+            threads[i] = new Thread() {
+                @Override public void run() {
+                    for (int j = 0; j < NUMS_TO_ADD; j++) {
+                        int id = j * THREAD_COUNT + threadNo;
+                        group.addMember(new DisappointingGroup.Member("member-" + id, 42));
+                    }
+                }
+            };
+            threads[i].start();
+        }
+        for (int i = 0; i < threads.length; i++)
+            threads[i].join();
+        System.out.println();
+//        group.startLoggingMemberList10Times("C:/Users/nec12/OneDrive/Desktop/output.primary",
+//                "C:/Users/nec12/OneDrive/Desktop/output.secondary");
     }
 }
