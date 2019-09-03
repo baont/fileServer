@@ -1,7 +1,8 @@
 package com.bao.fileserver.inter;
 
 /**
- * This inter is to be implemented by classes that listen to requests from clients and return responses to them
+ * This interface is to be implemented by classes that listen to requests from clients
+ * and return responses to them
  */
 public interface RequestHandler {
 

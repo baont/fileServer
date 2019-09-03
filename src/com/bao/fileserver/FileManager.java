@@ -2,8 +2,7 @@ package com.bao.fileserver;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,7 +15,7 @@ import java.util.stream.Collectors;
 public class FileManager {
     private String folder;
     // cache file list and content of each file to reduce disk access
-    private List<String> fileList;
+    private volatile List<String> fileList;
     private ConcurrentMap<String, String> contentPerFile;
 
     public FileManager(String folder) {
@@ -24,26 +23,59 @@ public class FileManager {
         contentPerFile = new ConcurrentHashMap<>();
     }
 
+    public void startWatch() throws IOException {
+        WatchService watchService
+                = FileSystems.getDefault().newWatchService();
+
+        Path path = Paths.get(folder);
+
+        path.register(
+                watchService,
+                StandardWatchEventKinds.ENTRY_CREATE,
+                StandardWatchEventKinds.ENTRY_DELETE,
+                StandardWatchEventKinds.ENTRY_MODIFY);
+
+        new Thread(() -> {
+            WatchKey key = null;
+            while (true) {
+                try {
+                    key = watchService.take();
+                } catch (InterruptedException e) {
+                    // nothing to do here, just log the exception
+                    e.printStackTrace();
+                }
+                System.out.println("some thing changed");
+                key.reset();
+            }
+        }).start();
+    }
+
     public List<String> listFile() throws IOException {
-        if (fileList == null) {
-            File folder = new File(this.folder);
-            File[] listOfFiles = folder.listFiles();
-
-            fileList = Arrays.asList(listOfFiles).stream()
-                    .filter(file -> file.isFile())
-                    .map(file -> file.getName()).collect(Collectors.toList());
-
+        if (fileList != null) {
+            return fileList;
         }
-        return fileList;
+        synchronized (this) {
+            if (fileList == null) {
+                File folder = new File(this.folder);
+                File[] listOfFiles = folder.listFiles();
+                if (listOfFiles == null) {
+                    throw new IOException("Could not get the list of file for folder " + this.folder);
+                }
+                fileList = Arrays.stream(listOfFiles)
+                        .filter(File::isFile)
+                        .map(File::getName).collect(Collectors.toList());
+
+            }
+            return fileList;
+        }
     }
 
     public String readFile(String file) throws IOException {
-        // we could not use computeIfAbsent here because the lambda expression does not has
-        // IOException in its signature
-        if (!contentPerFile.containsKey(file)) {
-            contentPerFile.put(file,
-                    new String(Files.readAllBytes(Paths.get(folder + File.separator + file))));
-        }
+        // no external synchronize is needed because of the nature of ConcurrentMap
+        contentPerFile.putIfAbsent(file,
+                new String(Files.readAllBytes(Paths.get(folder + File.separator + file))));
         return contentPerFile.get(file);
     }
+
+
 }
