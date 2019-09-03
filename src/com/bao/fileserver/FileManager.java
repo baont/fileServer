@@ -37,16 +37,23 @@ public class FileManager {
 
         new Thread(() -> {
             WatchKey key = null;
-            while (true) {
+            do {
                 try {
                     key = watchService.take();
                 } catch (InterruptedException e) {
                     // nothing to do here, just log the exception
                     e.printStackTrace();
                 }
-                System.out.println("some thing changed");
-                key.reset();
-            }
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    WatchEvent.Kind<?> kind = event.kind();
+                    if (kind == StandardWatchEventKinds.OVERFLOW) {
+                        continue;
+                    }
+                    // something in this folder has changed, reset the cache
+                    fileList = null;
+                    contentPerFile.clear();
+                }
+            } while (key.reset());
         }).start();
     }
 
