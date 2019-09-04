@@ -10,7 +10,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 /**
- * to make this thread-safe
+ * Handle listing and getting the content of files within a folder
+ * use caches to reduce disk access
+ * This class is thread-safe
  */
 public class FileManager {
     private String folder;
